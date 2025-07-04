@@ -1,7 +1,8 @@
 package main
 
-import "fmt"
+import "croc/drawer"
 
 func main() {
-	fmt.Println("croc!")
+	drawer.Drawer()
+
 }
