@@ -29,8 +29,9 @@ type line struct {
 }
 
 type drawStartegy struct {
-	name    string
-	command func(*DrawTool)
+	name             string
+	command          func(*DrawTool)
+	updateUIElements func(*DrawTool)
 }
 
 type DrawTool struct {
@@ -115,35 +116,36 @@ func (d *DrawTool) drawlines() {
 
 }
 
-func (d *DrawTool) handleMousevents() {
+func (dt *DrawTool) handleMousevents() {
 	startTime := time.Now()
 	for {
 		for event := sdl.PollEvent(); event != nil; event = sdl.PollEvent() {
 			switch t := event.(type) {
 			case *sdl.QuitEvent:
-				d.cleanup()
+				dt.cleanup()
 			case *sdl.KeyboardEvent:
 				if t.Keysym.Sym == sdl.K_ESCAPE {
-					d.cleanup()
+					dt.cleanup()
 				}
 				if t.Keysym.Sym == sdl.K_SPACE && t.Type == sdl.KEYDOWN {
-					nextStartegy := (d.completeLineStrategy + 1) % len(d.strategies)
+					nextStartegy := (dt.completeLineStrategy + 1) % len(dt.strategies)
 					fmt.Printf("Changing line drawing strategy from %s to %s\n",
-						d.strategies[d.completeLineStrategy].name, d.strategies[nextStartegy].name)
-					d.completeLineStrategy = nextStartegy
+						dt.strategies[dt.completeLineStrategy].name, dt.strategies[nextStartegy].name)
+					dt.strategies[nextStartegy].updateUIElements(dt)
+					dt.completeLineStrategy = nextStartegy
 				}
 			case *sdl.MouseButtonEvent:
 				if t.State == sdl.PRESSED {
-					d.lineStack = append(d.lineStack, line{
+					dt.lineStack = append(dt.lineStack, line{
 						begin:    &coordinate{int(t.X), int(t.Y)},
 						lineType: BEGIN,
 					})
 				}
 
 				if t.State == sdl.RELEASED {
-					lastLine := d.getLastUnfinishedLine()
+					lastLine := dt.getLastUnfinishedLine()
 					lastLine.end = &coordinate{int(t.X), int(t.Y)}
-					d.strategies[d.completeLineStrategy].command(d)
+					dt.strategies[dt.completeLineStrategy].command(dt)
 				}
 
 			}
@@ -157,7 +159,7 @@ func (d *DrawTool) handleMousevents() {
 
 		if time.Since(startTime).Milliseconds() > (10) {
 			startTime = time.Now()
-			d.makeInterLine()
+			dt.makeInterLine()
 		}
 	}
 
@@ -217,6 +219,9 @@ func Drawer() *DrawTool {
 					dt.eliminateInterLines(dt.completeLastLine())
 					dt.drawlines()
 				},
+				updateUIElements: func(dt *DrawTool) {
+					dt.setCurrentDrawingIcon("crosshair")
+				},
 			},
 			{
 				name: "wavy-lines",
@@ -224,14 +229,18 @@ func Drawer() *DrawTool {
 					dt.completeLastLine()
 					dt.drawlines()
 				},
+				updateUIElements: func(dt *DrawTool) {
+					dt.setCurrentDrawingIcon("pencil")
+				},
 			},
 		},
 		crusors: map[string]*sdl.Cursor{
-			"pencil": pencilCursor,
+			"pencil":    pencilCursor,
+			"crosshair": sdl.CreateSystemCursor(sdl.SYSTEM_CURSOR_CROSSHAIR),
 		},
 	}
 
-	drawingTool.setCurrentDrawingIcon("pencil")
+	drawingTool.setCurrentDrawingIcon("crosshair")
 	drawingTool.drawlines()
 	drawingTool.handleMousevents()
 	return drawingTool
