@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/veandco/go-sdl2/img"
 	"github.com/veandco/go-sdl2/sdl"
 )
 
@@ -182,6 +183,16 @@ func Drawer() *DrawTool {
 	if err != nil {
 		panic(err)
 	}
+
+	// 32x32 penicl image
+	// 
+	surface, err := img.Load("assets/pencilnew.png")
+	if err != nil {
+		panic(err)
+	}
+	cursor := sdl.CreateColorCursor(surface, 0, 25)
+	sdl.SetCursor(cursor)
+	surface.Free()
 
 	render, err := sdl.CreateRenderer(window, -1, sdl.RENDERER_ACCELERATED|sdl.RENDERER_PRESENTVSYNC)
 	if err != nil {
