@@ -39,6 +39,7 @@ type DrawTool struct {
 	completedLines       []line
 	completeLineStrategy int
 	strategies           []drawStartegy
+	crusors              map[string]*sdl.Cursor
 }
 
 func (d *DrawTool) cleanup() {
@@ -177,6 +178,14 @@ func (d *DrawTool) makeInterLine() {
 	})
 }
 
+func (d *DrawTool) setCurrentDrawingIcon(icon string) {
+	if cursor, ok := d.crusors[icon]; ok {
+		sdl.SetCursor(cursor)
+	} else {
+		panic("impossible cursor must exist!")
+	}
+}
+
 func Drawer() *DrawTool {
 
 	window, err := sdl.CreateWindow("croc", sdl.WINDOWPOS_CENTERED, sdl.WINDOWPOS_CENTERED, 800, 600, sdl.WINDOW_SHOWN)
@@ -185,13 +194,12 @@ func Drawer() *DrawTool {
 	}
 
 	// 32x32 penicl image
-	// 
+	// todo: init drawing tools icons
 	surface, err := img.Load("assets/pencilnew.png")
 	if err != nil {
 		panic(err)
 	}
-	cursor := sdl.CreateColorCursor(surface, 0, 25)
-	sdl.SetCursor(cursor)
+	pencilCursor := sdl.CreateColorCursor(surface, 0, 25)
 	surface.Free()
 
 	render, err := sdl.CreateRenderer(window, -1, sdl.RENDERER_ACCELERATED|sdl.RENDERER_PRESENTVSYNC)
@@ -218,7 +226,12 @@ func Drawer() *DrawTool {
 				},
 			},
 		},
+		crusors: map[string]*sdl.Cursor{
+			"pencil": pencilCursor,
+		},
 	}
+
+	drawingTool.setCurrentDrawingIcon("pencil")
 	drawingTool.drawlines()
 	drawingTool.handleMousevents()
 	return drawingTool
