@@ -9,7 +9,7 @@ import (
 )
 
 func Init() {
-	if err := sdl.Init(sdl.INIT_EVERYTHING); err != nil {
+	if err := sdl.Init(sdl.INIT_EVERYTHING | sdl.INIT_VIDEO); err != nil {
 		panic(err)
 	}
 
@@ -29,18 +29,19 @@ type line struct {
 }
 
 type drawStartegy struct {
-	name             string
-	command          func(*DrawTool)
-	updateUIElements func(*DrawTool)
+	name                     string
+	command                  func(dt *DrawTool, t *sdl.MouseButtonEvent)
+	timeDependentCorrections func(dt *DrawTool, t *time.Time)
+	updateUIElements         func(*DrawTool)
 }
 
 type DrawTool struct {
-	render               *sdl.Renderer
-	lineStack            []line
-	completedLines       []line
-	completeLineStrategy int
-	strategies           []drawStartegy
-	crusors              map[string]*sdl.Cursor
+	render         *sdl.Renderer
+	lineStack      []line
+	completedLines []line
+	drawStrategy   int
+	strategies     []drawStartegy
+	crusors        map[string]*sdl.Cursor
 }
 
 func (d *DrawTool) cleanup() {
@@ -128,39 +129,19 @@ func (dt *DrawTool) handleMousevents() {
 					dt.cleanup()
 				}
 				if t.Keysym.Sym == sdl.K_SPACE && t.Type == sdl.KEYDOWN {
-					nextStartegy := (dt.completeLineStrategy + 1) % len(dt.strategies)
+					nextStartegy := (dt.drawStrategy + 1) % len(dt.strategies)
 					fmt.Printf("Changing line drawing strategy from %s to %s\n",
-						dt.strategies[dt.completeLineStrategy].name, dt.strategies[nextStartegy].name)
+						dt.strategies[dt.drawStrategy].name, dt.strategies[nextStartegy].name)
 					dt.strategies[nextStartegy].updateUIElements(dt)
-					dt.completeLineStrategy = nextStartegy
+					dt.drawStrategy = nextStartegy
 				}
 			case *sdl.MouseButtonEvent:
-				if t.State == sdl.PRESSED {
-					dt.lineStack = append(dt.lineStack, line{
-						begin:    &coordinate{int(t.X), int(t.Y)},
-						lineType: BEGIN,
-					})
-				}
-
-				if t.State == sdl.RELEASED {
-					lastLine := dt.getLastUnfinishedLine()
-					lastLine.end = &coordinate{int(t.X), int(t.Y)}
-					dt.strategies[dt.completeLineStrategy].command(dt)
-				}
-
+				dt.strategies[dt.drawStrategy].command(dt, t)
 			}
 
 		}
 
-		// Illusion of flow.....
-		// 1 frame == 10ms
-		// xframe == 1000ms
-		// 100 frames in 1000ms = 100FPS
-
-		if time.Since(startTime).Milliseconds() > (10) {
-			startTime = time.Now()
-			dt.makeInterLine()
-		}
+		dt.strategies[dt.drawStrategy].timeDependentCorrections(dt, &startTime)
 	}
 
 }
@@ -210,27 +191,74 @@ func Drawer() *DrawTool {
 	}
 
 	drawingTool := &DrawTool{
-		render:               render,
-		completeLineStrategy: 0,
+		render:       render,
+		drawStrategy: 0,
 		strategies: []drawStartegy{
 			{
 				name: "straight-lines",
-				command: func(dt *DrawTool) {
-					dt.eliminateInterLines(dt.completeLastLine())
-					dt.drawlines()
+				command: func(dt *DrawTool, t *sdl.MouseButtonEvent) {
+					if t.State == sdl.PRESSED {
+						dt.lineStack = append(dt.lineStack, line{
+							begin:    &coordinate{int(t.X), int(t.Y)},
+							lineType: BEGIN,
+						})
+					}
+
+					if t.State == sdl.RELEASED {
+						lastLine := dt.getLastUnfinishedLine()
+						lastLine.end = &coordinate{int(t.X), int(t.Y)}
+						dt.eliminateInterLines(dt.completeLastLine())
+						dt.drawlines()
+					}
+
 				},
+
 				updateUIElements: func(dt *DrawTool) {
 					dt.setCurrentDrawingIcon("crosshair")
+				},
+
+				timeDependentCorrections: func(dt *DrawTool, startTime *time.Time) {
+					// Illusion of flow.....
+					// 1 frame == 10ms
+					// xframe == 1000ms
+					// 100 frames in 1000ms = 100FPS
+					if time.Since(*startTime).Milliseconds() > (10) {
+						*startTime = time.Now()
+						dt.makeInterLine()
+					}
 				},
 			},
 			{
 				name: "wavy-lines",
-				command: func(dt *DrawTool) {
-					dt.completeLastLine()
-					dt.drawlines()
+				command: func(dt *DrawTool, t *sdl.MouseButtonEvent) {
+
+					if t.State == sdl.PRESSED {
+						dt.lineStack = append(dt.lineStack, line{
+							begin:    &coordinate{int(t.X), int(t.Y)},
+							lineType: BEGIN,
+						})
+					}
+
+					if t.State == sdl.RELEASED {
+						lastLine := dt.getLastUnfinishedLine()
+						lastLine.end = &coordinate{int(t.X), int(t.Y)}
+						dt.completeLastLine()
+						dt.drawlines()
+					}
+
 				},
 				updateUIElements: func(dt *DrawTool) {
 					dt.setCurrentDrawingIcon("pencil")
+				},
+				timeDependentCorrections: func(dt *DrawTool, startTime *time.Time) {
+					// Illusion of flow.....
+					// 1 frame == 10ms
+					// xframe == 1000ms
+					// 100 frames in 1000ms = 100FPS
+					if time.Since(*startTime).Milliseconds() > (10) {
+						*startTime = time.Now()
+						dt.makeInterLine()
+					}
 				},
 			},
 		},
